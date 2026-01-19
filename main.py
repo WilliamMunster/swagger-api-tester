@@ -16,11 +16,106 @@ from core.executor import TestExecutor
 from core.auth import AuthHandler
 from core.reporter import HtmlReporter
 
+# 场景测试模块
+from scenario import ScenarioParser, ScenarioExecutor
+
 
 def load_config(config_path: str) -> Dict:
     """加载配置文件"""
     with open(config_path, 'r', encoding='utf-8') as f:
         return yaml.safe_load(f)
+
+
+def run_scenario_test(scenario_file: str, base_url: str = None, config: Dict = None, output: str = None):
+    """
+    执行场景测试（2.0模式）
+
+    Args:
+        scenario_file: 场景定义文件路径
+        base_url: API基础URL
+        config: 配置字典
+        output: 输出报告路径
+    """
+    print("=" * 60)
+    print("🚀 Swagger API自动化测试框架 2.0 - 场景测试")
+    print("=" * 60)
+
+    # 1. 解析场景文件
+    print(f"\n📖 正在解析场景文件: {scenario_file}")
+    parser = ScenarioParser()
+    scenario = parser.parse_file(scenario_file)
+
+    print(f"   场景: {scenario.name}")
+    print(f"   描述: {scenario.description}")
+    print(f"   版本: {scenario.version}")
+    print(f"   测试步骤: {len(scenario.steps)}个")
+    if scenario.setup:
+        print(f"   前置步骤: {len(scenario.setup)}个")
+    if scenario.teardown:
+        print(f"   清理步骤: {len(scenario.teardown)}个")
+
+    # 2. 验证场景
+    errors = parser.validate(scenario)
+    if errors:
+        print(f"\n❌ 场景验证失败:")
+        for error in errors:
+            print(f"   - {error}")
+        sys.exit(1)
+
+    print(f"   ✓ 场景验证通过")
+
+    # 3. 初始化执行器
+    auth_token = None
+    if config and 'auth' in config:
+        auth_config = config['auth']
+        if auth_config.get('type') == 'http_bearer':
+            auth_token = auth_config.get('token')
+
+    executor = ScenarioExecutor(
+        base_url=base_url,
+        timeout=config.get('execution', {}).get('timeout', 30) if config else 30,
+        verify_ssl=config.get('execution', {}).get('verify_ssl', True) if config else True,
+        auth_token=auth_token
+    )
+
+    # 4. 执行场景
+    print(f"\n🧪 开始执行场景测试...")
+    result = executor.execute(scenario)
+
+    # 5. 显示结果
+    print(f"\n" + "=" * 60)
+    print("✨ 场景测试完成！")
+    print("=" * 60)
+
+    print(f"\n场景: {result.name}")
+    print(f"状态: {'✓ 通过' if result.passed else '✗ 失败'}")
+    print(f"\n步骤统计:")
+    print(f"  总计: {result.total_steps}")
+    print(f"  通过: {result.passed_steps} ✓")
+    print(f"  失败: {result.failed_steps} ✗")
+    print(f"  跳过: {result.skipped_steps}")
+    print(f"\n总耗时: {result.total_time:.2f}秒")
+
+    # 6. 生成报告（简化版）
+    if output:
+        print(f"\n📊 正在生成测试报告...")
+        # TODO: 实现场景测试报告生成
+        print(f"   提示: 场景测试报告生成功能正在开发中")
+
+    # 显示提取的变量
+    if result.context_snapshot:
+        print(f"\n📌 场景上下文变量:")
+        for scope, vars_dict in result.context_snapshot.items():
+            if vars_dict:
+                print(f"  {scope}:")
+                for key, value in vars_dict.items():
+                    value_str = str(value)
+                    if len(value_str) > 50:
+                        value_str = value_str[:50] + "..."
+                    print(f"    {key}: {value_str}")
+
+    # 如果有失败步骤，返回非0退出码
+    sys.exit(0 if result.failed_steps == 0 else 1)
 
 
 def main():
@@ -30,7 +125,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
-  # 基础测试
+  # 1.0 单接口测试模式
   python main.py -s examples/petstore.json -u https://petstore.swagger.io/v2
 
   # 使用配置文件
@@ -39,15 +134,23 @@ def main():
   # 并行执行测试
   python main.py -s swagger.json -u http://api.example.com --parallel --workers 10
 
-  # 指定输出路径
-  python main.py -s swagger.yaml -u http://api.example.com -o reports/my_report.html
+  # 2.0 场景测试模式
+  python main.py --scenario scenarios/user_workflow_example.yaml
+
+  # 场景测试使用配置文件
+  python main.py --scenario scenarios/order_flow.yaml -c config/test_config.yaml
         """
     )
 
-    parser.add_argument(
+    # 测试模式选择
+    mode_group = parser.add_mutually_exclusive_group(required=True)
+    mode_group.add_argument(
         '-s', '--spec',
-        required=True,
-        help='Swagger/OpenAPI规范文件路径（支持JSON和YAML）'
+        help='Swagger/OpenAPI规范文件路径（1.0单接口测试模式）'
+    )
+    mode_group.add_argument(
+        '--scenario',
+        help='场景定义文件路径（2.0场景测试模式）'
     )
 
     parser.add_argument(
@@ -93,9 +196,26 @@ def main():
 
     args = parser.parse_args()
 
+    # 加载配置（如果有）
+    config = {}
+    if args.config:
+        config = load_config(args.config)
+
+    # 根据模式选择执行不同的测试
+    if args.scenario:
+        # 2.0 场景测试模式
+        run_scenario_test(
+            scenario_file=args.scenario,
+            base_url=args.base_url,
+            config=config,
+            output=args.output
+        )
+        return
+
+    # 1.0 单接口测试模式（原有逻辑）
     try:
         print("=" * 60)
-        print("🚀 Swagger API自动化测试框架")
+        print("🚀 Swagger API自动化测试框架 1.0")
         print("=" * 60)
 
         # 1. 加载Swagger规范
@@ -114,13 +234,7 @@ def main():
 
         print(f"   基础URL: {base_url}")
 
-        # 2. 加载配置（如果有）
-        config = {}
-        if args.config:
-            print(f"\n⚙️  正在加载配置文件: {args.config}")
-            config = load_config(args.config)
-
-        # 3. 初始化认证处理器
+        # 2. 初始化认证处理器
         auth_handler = None
         if 'auth' in config:
             print(f"\n🔐 初始化认证处理器")

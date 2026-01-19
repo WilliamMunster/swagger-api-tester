@@ -1,0 +1,118 @@
+# 条件分支场景示例 - 订单支付流程
+
+scenario:
+  name: "订单支付条件分支流程"
+  description: "根据用户余额选择不同的支付方式"
+  version: "2.0"
+
+  config:
+    base_url: "http://api.example.com"
+    timeout: 30
+
+  steps:
+    # 步骤1: 用户登录
+    - name: "用户登录"
+      api: "POST /api/auth/login"
+      request:
+        body:
+          username: "test_user"
+          password: "password123"
+      extract:
+        - name: "access_token"
+          path: "$.data.token"
+        - name: "user_id"
+          path: "$.data.userId"
+      assert:
+        - "status_code == 200"
+
+    # 步骤2: 创建订单
+    - name: "创建订单"
+      api: "POST /api/orders"
+      request:
+        headers:
+          Authorization: "Bearer ${access_token}"
+        body:
+          items:
+            - productId: "PROD001"
+              quantity: 2
+            - productId: "PROD002"
+              quantity: 1
+      extract:
+        - name: "order_id"
+          path: "$.data.orderId"
+        - name: "total_amount"
+          path: "$.data.totalAmount"
+      assert:
+        - "status_code == 201"
+        - "response.data.orderId != null"
+
+    # 步骤3: 查询用户余额
+    - name: "查询用户余额"
+      api: "GET /api/users/${user_id}/balance"
+      request:
+        headers:
+          Authorization: "Bearer ${access_token}"
+      extract:
+        - name: "balance"
+          path: "$.data.balance"
+      assert:
+        - "status_code == 200"
+
+    # 步骤4: 条件分支 - 根据余额选择支付方式
+    - name: "支付决策"
+      condition:
+        # 如果余额充足，使用余额支付
+        if: "${balance} >= ${total_amount}"
+        then:
+          - name: "余额支付"
+            api: "POST /api/orders/${order_id}/pay"
+            request:
+              headers:
+                Authorization: "Bearer ${access_token}"
+              body:
+                paymentMethod: "balance"
+                amount: ${total_amount}
+            extract:
+              - name: "payment_status"
+                path: "$.data.status"
+            assert:
+              - "status_code == 200"
+              - "response.data.status == 'paid'"
+
+        # 否则，使用第三方支付
+        else:
+          - name: "创建第三方支付订单"
+            api: "POST /api/orders/${order_id}/pay"
+            request:
+              headers:
+                Authorization: "Bearer ${access_token}"
+              body:
+                paymentMethod: "alipay"
+                amount: ${total_amount}
+            extract:
+              - name: "pay_url"
+                path: "$.data.payUrl"
+              - name: "payment_order_id"
+                path: "$.data.paymentOrderId"
+            assert:
+              - "status_code == 200"
+              - "response.data.payUrl != null"
+
+          - name: "模拟支付回调"
+            api: "POST /api/payments/callback"
+            request:
+              body:
+                paymentOrderId: "${payment_order_id}"
+                status: "success"
+            assert:
+              - "status_code == 200"
+
+    # 步骤5: 查询最终订单状态
+    - name: "查询订单状态"
+      api: "GET /api/orders/${order_id}"
+      request:
+        headers:
+          Authorization: "Bearer ${access_token}"
+      assert:
+        - "status_code == 200"
+        - "response.data.status in ['paid', 'paying']"

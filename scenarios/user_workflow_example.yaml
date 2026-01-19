@@ -1,0 +1,91 @@
+# 用户注册登录完整流程场景示例
+
+scenario:
+  name: "用户注册登录流程"
+  description: "测试用户从注册到登录再到查询信息的完整流程"
+  version: "2.0"
+
+  # 全局配置
+  config:
+    base_url: "https://petstore.swagger.io/v2"
+    timeout: 30
+    retry: 1
+
+  # 测试步骤
+  steps:
+    # 步骤1: 创建用户（相当于注册）
+    - name: "创建用户"
+      api: "POST /user"
+      request:
+        body:
+          id: ${random_int(10000, 99999)}
+          username: "testuser_${timestamp()}"
+          firstName: "Test"
+          lastName: "User"
+          email: "test_${timestamp()}@example.com"
+          password: "Test@123456"
+          phone: "1234567890"
+          userStatus: 1
+
+      # 从响应中提取变量
+      extract:
+        - name: "created_username"
+          path: "$.username"
+
+      # 断言
+      assert:
+        - "status_code == 200"
+
+    # 步骤2: 登录获取token（这里模拟登录）
+    - name: "用户登录"
+      api: "GET /user/login"
+      request:
+        query:
+          username: "${created_username}"
+          password: "Test@123456"
+
+      extract:
+        - name: "session_token"
+          header: "X-Rate-Limit"  # 实际项目中应该是真实的token
+
+      assert:
+        - "status_code == 200"
+
+    # 步骤3: 查询用户信息
+    - name: "查询用户信息"
+      api: "GET /user/${created_username}"
+
+      assert:
+        - "status_code == 200"
+        - "response.username == '${created_username}'"
+        - "response.email != null"
+
+    # 步骤4: 更新用户信息
+    - name: "更新用户信息"
+      api: "PUT /user/${created_username}"
+      request:
+        body:
+          id: ${random_int(10000, 99999)}
+          username: "${created_username}"
+          firstName: "Updated"
+          lastName: "User"
+          email: "updated_${timestamp()}@example.com"
+          password: "NewPass@123"
+          phone: "0987654321"
+          userStatus: 1
+
+      assert:
+        - "status_code == 200"
+
+    # 步骤5: 再次查询验证更新
+    - name: "验证更新结果"
+      api: "GET /user/${created_username}"
+
+      assert:
+        - "status_code == 200"
+        - "response.firstName == 'Updated'"
+
+  # 清理操作
+  teardown:
+    - name: "删除测试用户"
+      api: "DELETE /user/${created_username}"
