@@ -1,0 +1,76 @@
+# Swagger API测试框架配置文件示例
+
+# API认证配置
+auth:
+  # 认证类型: apiKey, http_bearer, http_basic, oauth2, none
+  type: http_bearer
+
+  # Bearer Token认证
+  token: "your_bearer_token_here"
+
+  # 或者使用API Key认证
+  # type: apiKey
+  # name: X-API-Key
+  # in: header  # 或 query
+  # value: your_api_key_here
+
+  # 或者使用Basic认证
+  # type: http_basic
+  # username: your_username
+  # password: your_password
+
+# 测试执行配置
+execution:
+  # 请求超时时间（秒）
+  timeout: 30
+
+  # 是否验证SSL证书
+  verify_ssl: true
+
+  # 是否并行执行测试
+  parallel: false
+
+  # 并行线程数
+  max_workers: 5
+
+# 测试范围配置
+test_scope:
+  # 是否跳过已废弃的API
+  skip_deprecated: true
+
+  # 只测试特定的tags（为空则测试所有）
+  include_tags: []
+  # - user
+  # - pet
+
+  # 排除特定的tags
+  exclude_tags: []
+
+  # 只测试特定的端点（正则表达式）
+  include_paths: []
+  # - ^/api/users.*
+
+  # 排除特定的端点
+  exclude_paths: []
+
+# 测试用例配置
+test_generation:
+  # 是否生成安全测试用例
+  include_security_tests: true
+
+  # 是否生成性能测试用例
+  include_performance_tests: false
+
+  # 每个端点最大测试用例数
+  max_cases_per_endpoint: 50
+
+# 报告配置
+report:
+  # 报告输出目录
+  output_dir: reports
+
+  # 报告文件名模板
+  filename_template: "report_{timestamp}.html"
+
+  # 是否在报告中包含请求/响应详情
+  include_details: true
