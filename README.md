@@ -208,7 +208,10 @@ MIT License
 
 - [OpenAPI规范](https://swagger.io/specification/)
 - [Swagger官方文档](https://swagger.io/docs/)
-- [API测试最佳实践](https://www.ministryoftesting.com/dojo/series/the-testing-planet-archive/lessons/api-testing-best-practices)
+- [REST API测试指南](https://www.postman.com/api-platform/api-testing/)
+- [OWASP API安全Top 10](https://owasp.org/API-Security/editions/2023/en/0x11-t10/)
+- [Python Requests文档](https://requests.readthedocs.io/)
+- [JSON Schema验证](https://json-schema.org/)
 
 ## ⚡ 常见问题
 
